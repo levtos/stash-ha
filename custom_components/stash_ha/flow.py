@@ -33,7 +33,6 @@ from .const import (
     DEFAULT_POLL_INTERVAL,
     DEFAULT_USE_WEBHOOK,
     MODULE_ID,
-    NAME,
     NSFW_MODES,
 )
 

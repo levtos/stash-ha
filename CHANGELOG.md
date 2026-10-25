@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1 - 2026-10-25
+
+- Fetch global and per-slot media-player covers through the existing authenticated, NSFW-aware cover helper instead of HA's unauthenticated screenshot fetch.
+- Determine the actual MIME type and verify processed image bytes with Pillow in the executor; return no image for empty/inactive sources, hidden mode, invalid data or errors.
+- Set media_image_remotely_accessible to false; keep the existing cover-image entity_picture preference and entity identities unchanged.
+- Log cover-fetch failures by exception class only, without URLs or exception messages. Remove one pre-existing unused import required for the Ruff check.
+
 ## 0.7.0 - 2026-07-06
 
 - Add a full per-slot dashboard package on top of the v0.6.0 slot title sensors

@@ -436,7 +436,7 @@ async def _fetch_cover_bytes(
             resp.raise_for_status()
             data = await resp.read()
     except Exception as err:  # noqa: BLE001
-        _LOGGER.warning("Stash cover fetch failed for %s: %s", screenshot_url, err)
+        _LOGGER.warning("Stash cover fetch failed (%s)", type(err).__name__)
         return None
     if nsfw_mode == NSFW_BLUR:
         try:
@@ -539,6 +539,30 @@ class _SlotCoverImage(CoordinatorEntity[StashPlaybackCoordinator], ImageEntity):
 
 
 # --------------------------------------------------------------- media_player
+
+
+def _cover_content_type(data: bytes) -> str | None:
+    """Identify and verify the processed image in the executor."""
+    from PIL import Image
+
+    with Image.open(io.BytesIO(data)) as image:
+        content_type = Image.MIME.get(image.format)
+        image.verify()
+    return content_type if content_type and content_type.startswith("image/") else None
+
+
+async def _fetch_media_cover(
+    hass: HomeAssistant, entry: ConfigEntry, url: str | None
+) -> tuple[bytes | None, str | None]:
+    try:
+        data = await _fetch_cover_bytes(hass, entry, url)
+        if data:
+            content_type = await hass.async_add_executor_job(_cover_content_type, data)
+            if content_type:
+                return data, content_type
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug("Stash player cover unavailable (%s)", type(err).__name__)
+    return None, None
 
 
 class _MediaPlayer(CoordinatorEntity[StashPlaybackCoordinator], MediaPlayerEntity):
@@ -652,6 +676,15 @@ class _MediaPlayer(CoordinatorEntity[StashPlaybackCoordinator], MediaPlayerEntit
         if not self._is_streaming:
             return None
         return (self._scene.get("paths") or {}).get("screenshot")
+
+    @property
+    def media_image_remotely_accessible(self) -> bool:
+        return False
+
+    async def async_get_media_image(self) -> tuple[bytes | None, str | None]:
+        if not self._is_streaming:
+            return None, None
+        return await _fetch_media_cover(self.hass, self._entry, self.media_image_url)
 
     @property
     def entity_picture(self) -> str | None:
@@ -787,6 +820,15 @@ class _SlotMediaPlayer(CoordinatorEntity[StashPlaybackCoordinator], MediaPlayerE
     @property
     def media_image_url(self) -> str | None:
         return slot_cover_url(self._scene)
+
+    @property
+    def media_image_remotely_accessible(self) -> bool:
+        return False
+
+    async def async_get_media_image(self) -> tuple[bytes | None, str | None]:
+        if not self._scene:
+            return None, None
+        return await _fetch_media_cover(self.hass, self._entry, self.media_image_url)
 
     def _resolve_cover_entity(self) -> str | None:
         if self._cover_entity_id:
