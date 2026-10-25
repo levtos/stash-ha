@@ -20,3 +20,24 @@ jobs:
     with:
       manifest_path: custom_components/stash_ha/manifest.json
       tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  changelog:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      - name: Publish matching changelog text
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os, pathlib, subprocess
+          version = os.environ['RELEASE_TAG'].removeprefix('v')
+          text = pathlib.Path('CHANGELOG.md').read_text(encoding='utf-8')
+          section = next(part for part in text.split('\n## ') if part.startswith(version + ' - '))
+          notes = pathlib.Path(os.environ['RUNNER_TEMP']) / 'release-notes.md'
+          notes.write_text(section.split('\n', 1)[1].strip() + '\n', encoding='utf-8')
+          subprocess.run(['gh', 'release', 'edit', os.environ['RELEASE_TAG'], '--notes-file', str(notes)], check=True)
+          PY
